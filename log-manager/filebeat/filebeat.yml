@@ -58,10 +58,6 @@ filebeat.autodiscover:
             - type: container
               paths:
                 - /var/lib/docker/containers/${data.container.id}/*-json.log
-              multiline:
-                pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
-                negate:  true
-                match:   after
               tags: ["spring-boot", "ayrotek"]
               fields_under_root: true
               fields:
@@ -108,10 +104,6 @@ filebeat.autodiscover:
             - type: container
               paths:
                 - /var/lib/docker/containers/${data.container.id}/*-json.log
-              multiline:
-                pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
-                negate:  true
-                match:   after
               tags: ["spring-boot", "cold-wallet-manager"]
               fields_under_root: true
               fields:
