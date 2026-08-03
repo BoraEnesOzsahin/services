@@ -1,0 +1,45 @@
+#
+services:
+  # ----------------------------------------------------
+  # Your Spring Boot Service (payment-service)
+  # ----------------------------------------------------
+  payment-app:
+    # If you have a Dockerfile locally, you can use:
+    build: .
+    # Or if you already have the image pulled/built:
+    # image: payment-service:latest
+    ports:
+      - "8085:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=$${DB_URL:jdbc:postgresql://host.docker.internal:5432/payment_db}
+      - SPRING_DATASOURCE_USERNAME=$${DB_USERNAME:postgres}
+      - SPRING_DATASOURCE_PASSWORD=$${DB_PASSWORD:admin123}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - CONSUL_HOST=host.docker.internal
+      - CONSUL_PORT=8500
+    labels:
+      co.elastic.logs/enabled: "true"
+      co.elastic.logs/multiline.pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}"
+      co.elastic.logs/multiline.negate:  "true"
+      co.elastic.logs/multiline.match:   "after"
+    networks:
+      - reckon-ext-net
+    volumes:
+      # We mount the shared volume to the default relative path inside the container where Spring Boot writes 'logs'
+      - app-logs:/app/logs
+
+  # Filebeat has been removed as it is now handled centrally by log-manager.
+
+volumes:
+  # Define the shared volume
+  app-logs:
+    external: true
+    name: reckon-app-logs
+
+
+networks:
+  reckon-ext-net:
+    external: true
+    name: reckon-ext-net

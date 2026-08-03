@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Read Spring properties into Logback context -->
+    <springProperty scope="context" name="springAppName"  source="spring.application.name" defaultValue="cold-wallet-manager"/>
+    <springProperty scope="context" name="serviceVersion" source="service.version"          defaultValue="0.0.1-SNAPSHOT"/>
+    <springProperty scope="context" name="serviceEnv"     source="service.environment"      defaultValue="development"/>
+
+    <!--
+        Single JSON console appender — Docker captures stdout and ships it to
+        the log collector (Filebeat).  Do NOT add a second plain-text appender;
+        that would double every log line.
+    -->
+    <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+
+            <!-- ── ECS top-level field names ── -->
+            <fieldNames>
+                <timestamp>@timestamp</timestamp>
+                <message>message</message>
+                <logger>log.logger</logger>
+                <thread>log.thread</thread>
+                <levelValue>[ignore]</levelValue>
+                <!-- log.level is injected via LoggingEventPatternJsonProvider below -->
+                <stackTrace>error.stack_trace</stackTrace>
+            </fieldNames>
+
+            <!-- ── Static service metadata ── -->
+            <customFields>{"service":{"name":"cold-wallet-manager","version":"${serviceVersion}","environment":"${serviceEnv}"},"event":{"dataset":"cold-wallet-manager.application"}}</customFields>
+
+            <!--
+                MDC keys injected by RequestCorrelationFilter and
+                HttpRequestLoggingInterceptor.  Listed explicitly so that
+                only known, safe keys are forwarded.
+            -->
+            <includeMdcKeyName>trace.id</includeMdcKeyName>
+            <includeMdcKeyName>transaction.id</includeMdcKeyName>
+            <includeMdcKeyName>http.method</includeMdcKeyName>
+            <includeMdcKeyName>http.status_code</includeMdcKeyName>
+            <includeMdcKeyName>url.path</includeMdcKeyName>
+            <includeMdcKeyName>event.duration_ms</includeMdcKeyName>
+            <includeMdcKeyName>event.action</includeMdcKeyName>
+            <includeMdcKeyName>event.outcome</includeMdcKeyName>
+            <includeMdcKeyName>wallet.id</includeMdcKeyName>
+            <includeMdcKeyName>wallet.address_masked</includeMdcKeyName>
+            <!-- Audit & error MDC keys -->
+            <includeMdcKeyName>audit.action</includeMdcKeyName>
+            <includeMdcKeyName>audit.actor</includeMdcKeyName>
+            <includeMdcKeyName>audit.resource</includeMdcKeyName>
+            <includeMdcKeyName>audit.result</includeMdcKeyName>
+            <includeMdcKeyName>error.code</includeMdcKeyName>
+            <includeMdcKeyName>error.category</includeMdcKeyName>
+
+            <!--
+                Pattern provider adds:
+                  log.level  — keyword field, uppercased
+                  error.type — short exception class name (empty when no exception)
+                  error.message — first line of the exception message
+            -->
+            <provider class="net.logstash.logback.composite.loggingevent.LoggingEventPatternJsonProvider">
+                <pattern>
+                    {
+                        "log": { "level": "%level" },
+                        "error": {
+                            "type":    "%.-1024ex{short}",
+                            "message": "%.-2048ex{1}"
+                        }
+                    }
+                </pattern>
+            </provider>
+
+        </encoder>
+    </appender>
+
+    <!--
+        AUDIT_FILE — dedicated rolling file for audit events only.
+        Written by AuditService via the "audit" logger.
+        Collected by Filebeat as event.dataset=cold-wallet-manager.audit
+    -->
+    <appender name="AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/coldwallet/audit.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- Keep 90 days of compressed daily audit rolls -->
+            <fileNamePattern>logs/coldwallet/audit.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+            <maxHistory>90</maxHistory>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <fieldNames>
+                <timestamp>@timestamp</timestamp>
+                <message>message</message>
+                <logger>log.logger</logger>
+                <thread>log.thread</thread>
+                <levelValue>[ignore]</levelValue>
+                <stackTrace>error.stack_trace</stackTrace>
+            </fieldNames>
+            <customFields>{"service":{"name":"cold-wallet-manager","version":"${serviceVersion}","environment":"${serviceEnv}"},"event":{"dataset":"cold-wallet-manager.audit"}}</customFields>
+            <includeMdcKeyName>trace.id</includeMdcKeyName>
+            <includeMdcKeyName>audit.action</includeMdcKeyName>
+            <includeMdcKeyName>audit.actor</includeMdcKeyName>
+            <includeMdcKeyName>audit.resource</includeMdcKeyName>
+            <includeMdcKeyName>audit.result</includeMdcKeyName>
+        </encoder>
+    </appender>
+
+    <!--
+        ERROR_FILE — captures ERROR-level logs across the whole application.
+        Gives ops a single file to watch for production failures, independent
+        of log rotation on the main console output.
+    -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/coldwallet/error.log</file>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>ERROR</level>
+        </filter>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/coldwallet/error.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+            <maxHistory>90</maxHistory>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <fieldNames>
+                <timestamp>@timestamp</timestamp>
+                <message>message</message>
+                <logger>log.logger</logger>
+                <thread>log.thread</thread>
+                <levelValue>[ignore]</levelValue>
+                <stackTrace>error.stack_trace</stackTrace>
+            </fieldNames>
+            <customFields>{"service":{"name":"cold-wallet-manager","version":"${serviceVersion}","environment":"${serviceEnv}"},"event":{"dataset":"cold-wallet-manager.error"}}</customFields>
+            <includeMdcKeyName>trace.id</includeMdcKeyName>
+            <includeMdcKeyName>http.method</includeMdcKeyName>
+            <includeMdcKeyName>http.status_code</includeMdcKeyName>
+            <includeMdcKeyName>url.path</includeMdcKeyName>
+            <includeMdcKeyName>error.code</includeMdcKeyName>
+            <includeMdcKeyName>error.category</includeMdcKeyName>
+            <provider class="net.logstash.logback.composite.loggingevent.LoggingEventPatternJsonProvider">
+                <pattern>
+                    {
+                        "log": { "level": "%level" },
+                        "error": {
+                            "type":    "%.-1024ex{short}",
+                            "message": "%.-2048ex{1}"
+                        }
+                    }
+                </pattern>
+            </provider>
+        </encoder>
+    </appender>
+
+    <!-- ── Dedicated audit logger — routes only to AUDIT_FILE, not console ── -->
+    <logger name="audit" level="INFO" additivity="false">
+        <appender-ref ref="AUDIT_FILE"/>
+    </logger>
+
+    <!-- Suppress noisy discovery DEBUG spam in non-debug profiles -->
+    <springProfile name="!debug">
+        <logger name="org.springframework.vault" level="INFO"/>
+        <!-- Suppress Hibernate SQL from stdout; use datasource proxy for audit if needed -->
+        <logger name="org.hibernate.SQL" level="WARN"/>
+    </springProfile>
+
+    <springProfile name="debug">
+        <logger name="com.ayrotek" level="DEBUG"/>
+    </springProfile>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE_JSON"/>
+        <appender-ref ref="ERROR_FILE"/>
+    </root>
+</configuration>

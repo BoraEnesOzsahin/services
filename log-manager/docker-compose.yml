@@ -1,0 +1,150 @@
+services:
+
+  # ─────────────────────────────────────────────────────────────
+  # Elasticsearch
+  # ─────────────────────────────────────────────────────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: elasticsearch
+    environment:
+      - node.name=elasticsearch
+      - cluster.name=reckon-elk
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false          # disable TLS/auth for internal cluster
+      - xpack.security.http.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - reckon-ext-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsSL http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # Kibana
+  # ─────────────────────────────────────────────────────────────
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.4
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - XPACK_SECURITY_ENABLED=false
+    ports:
+      - "5601:5601"
+    networks:
+      - reckon-ext-net
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsSL http://localhost:5601/api/status | grep -q '\"level\":\"available\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # Logstash
+  # ─────────────────────────────────────────────────────────────
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.13.4
+    container_name: logstash
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+    ports:
+      - "5044:5044"   # Beats input
+      - "9600:9600"   # Logstash monitoring API
+    networks:
+      - reckon-ext-net
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - LS_JAVA_OPTS=-Xms256m -Xmx256m
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # Filebeat
+  # ─────────────────────────────────────────────────────────────
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.13.4
+    container_name: filebeat
+    user: root                               # needed to read Docker socket & log files
+    volumes:
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - filebeat-data:/usr/share/filebeat/data
+      - app-logs:/logs:ro
+    networks:
+      - reckon-ext-net
+    depends_on:
+      logstash:
+        condition: service_started
+    command: filebeat -e -strict.perms=false
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # log-manager (Spring Boot — this service)
+  # ─────────────────────────────────────────────────────────────
+  log-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: log-manager
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_APPLICATION_NAME=log-manager
+    ports:
+      - "8080:8080"
+    networks:
+      - reckon-ext-net
+
+    volumes:
+      - app-logs:/logs/log-manager
+    labels:
+      # Filebeat hints — enable log collection with multiline for this service
+      co.elastic.logs/enabled: "true"
+      co.elastic.logs/multiline.pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}"
+      co.elastic.logs/multiline.negate:  "true"
+      co.elastic.logs/multiline.match:   "after"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+# ─────────────────────────────────────────────────────────────
+# Volumes
+# ─────────────────────────────────────────────────────────────
+volumes:
+  elasticsearch-data:
+    driver: local
+  filebeat-data:
+    driver: local
+  app-logs:
+    name: reckon-app-logs
+
+# ─────────────────────────────────────────────────────────────
+# Networks
+# reckon-ext-net is declared external so Compose uses the
+# already-existing network (created manually or by another stack).
+# If it doesn't exist yet, create it first:
+#   docker network create reckon-ext-net
+# ─────────────────────────────────────────────────────────────
+networks:
+  reckon-ext-net:
+    external: true

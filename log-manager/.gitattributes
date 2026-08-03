@@ -1,0 +1,3 @@
+/mvnw text eol=lf
+/mvnw eol=lf diff=sh
+*.cmd text eol=crlf

@@ -1,0 +1,47 @@
+server:
+  port: 8085
+
+pkcs11:
+  library:
+    path: /usr/local/lib/libpkcs11-proxy.so
+
+# ── Service identity (consumed by logback-spring.xml) ──
+service:
+  version: "0.0.1-SNAPSHOT"
+  environment: ${SERVICE_ENVIRONMENT:development}
+
+spring:
+  application:
+    name: Cold-Wallet-Manager-Service
+
+  # Database Configuration — credentials via environment, never in code
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/mydatabase}
+    username: ${SPRING_DATASOURCE_USERNAME:myuser}
+    password: ${SPRING_DATASOURCE_PASSWORD:secret}
+
+  # JPA — disable show-sql; SQL logging via Hibernate logger in logback
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # Vault properties
+  cloud:
+    vault:
+      uri: ${SPRING_CLOUD_VAULT_URI:http://localhost:8200}
+      authentication: approle
+      app-role:
+        role-id: ${VAULT_ROLE_ID}
+        secret-id: ${VAULT_SECRET_ID}
+        app-role-path: approle
+
+# ── Logging ──
+logging:
+  level:
+    root: INFO
+    com.ayrotek: INFO
+

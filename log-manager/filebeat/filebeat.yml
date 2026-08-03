@@ -1,0 +1,170 @@
+##############################################################################
+# Filebeat configuration
+# Collects logs from ALL Docker containers on the host via the Docker socket.
+# Ships directly to Logstash on the shared reckon-ext-net network.
+#
+# ECS field strategy
+# ──────────────────
+# Flat underscore fields (service_name, log_level …) are NOT used.
+# All enrichment uses ECS nested targets so Elasticsearch documents contain
+# the proper nested objects: service.name, log.level, event.dataset, etc.
+##############################################################################
+filebeat.inputs:
+
+  # 1. Collect structured AUDIT logs (JSON)
+  - type: filestream
+    id: app-audit-logs
+    enabled: true
+    paths:
+      - /logs/*/audit.log*
+    parsers:
+      - ndjson:
+          target: ""
+          add_error_key: true
+          overwrite_keys: true
+
+  # 2. Collect structured ERROR logs (JSON)
+  - type: filestream
+    id: app-error-logs
+    enabled: true
+    paths:
+      - /logs/*/error.log*
+    parsers:
+      - ndjson:
+          target: ""
+          add_error_key: true
+          overwrite_keys: true
+
+
+
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      # Harvest logs from every container on the host.
+      hints.enabled: true          # honour co.elastic.logs/* Docker labels
+      hints.default_config:
+        type: container
+        paths:
+          - /var/lib/docker/containers/${data.container.id}/*-json.log
+
+      # ── Per-container overrides ──────────────────────────────────────────
+      templates:
+
+        # ── Spring Boot / Ayrotek application containers ─────────────────
+        - condition:
+            contains:
+              docker.container.image: "ayrotek"
+          config:
+            - type: container
+              paths:
+                - /var/lib/docker/containers/${data.container.id}/*-json.log
+              multiline:
+                pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+                negate:  true
+                match:   after
+              tags: ["spring-boot", "ayrotek"]
+              fields_under_root: true
+              fields:
+                # ECS nested fields via dot notation (Filebeat flattens them
+                # into proper nested objects when fields_under_root: true)
+                service.name: "${data.container.name}"
+
+        # ── PostgreSQL container ──────────────────────────────────────────
+        - condition:
+            or:
+              - equals:
+                  docker.container.name: "postgresql"
+              - contains:
+                  docker.container.name: "postgres"
+          config:
+            - type: container
+              paths:
+                - /var/lib/docker/containers/${data.container.id}/*-json.log
+              tags: ["postgresql"]
+              fields_under_root: true
+              fields:
+                service.name: "postgresql"
+                event.dataset: "postgresql.log"
+
+        # ── Vault container ───────────────────────────────────────────────
+        - condition:
+            equals:
+              docker.container.name: "vault"
+          config:
+            - type: container
+              paths:
+                - /var/lib/docker/containers/${data.container.id}/*-json.log
+              tags: ["vault"]
+              fields_under_root: true
+              fields:
+                service.name: "vault"
+                event.dataset: "vault.audit"
+
+        # ── cold-wallet-manager container ─────────────────────────────────
+        - condition:
+            equals:
+              docker.container.name: "cold-wallet-manager"
+          config:
+            - type: container
+              paths:
+                - /var/lib/docker/containers/${data.container.id}/*-json.log
+              multiline:
+                pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+                negate:  true
+                match:   after
+              tags: ["spring-boot", "cold-wallet-manager"]
+              fields_under_root: true
+              fields:
+                service.name: "cold-wallet-manager"
+                event.dataset: "cold-wallet-manager.application"
+
+        # ── hiveos-integration container ──────────────────────────────────
+        # This service emits single-line JSON (logstash-logback-encoder) so
+        # no multiline assembly is needed.
+        - condition:
+            equals:
+              docker.container.name: "hiveos-integration"
+          config:
+            - type: container
+              paths:
+                - /var/lib/docker/containers/${data.container.id}/*-json.log
+              tags: ["spring-boot", "hiveos-integration"]
+              fields_under_root: true
+              fields:
+                service.name: "hiveos-integration"
+                event.dataset: "hiveos-integration.application"
+
+# ── Processors applied to every event ────────────────────────────────────────
+processors:
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+      # Docker metadata is placed under container.* (ECS) by Filebeat 8.x
+  - add_host_metadata: ~
+      # Host metadata is placed under host.* (ECS) by Filebeat 8.x
+  - add_cloud_metadata: ~
+      # Cloud metadata is placed under cloud.* (ECS) by Filebeat 8.x
+  - decode_json_fields:
+      fields: ["message"]
+      target: ""
+      overwrite_keys: true
+      add_error_key: true
+
+# ── Output → Logstash ────────────────────────────────────────────────────────
+output.logstash:
+  hosts: ["logstash:5044"]
+  loadbalance: true
+  worker: 2
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+logging.level: info
+logging.to_files: true
+logging.files:
+  path:  /usr/share/filebeat/logs
+  name:  filebeat
+  keepfiles: 7
+
+# ── Internal queue / performance ─────────────────────────────────────────────
+queue.mem:
+  events: 4096
+  flush.min_events: 512
+  flush.timeout:    5s

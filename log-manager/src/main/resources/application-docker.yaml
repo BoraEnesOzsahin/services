@@ -1,0 +1,14 @@
+##############################################
+# application-docker.yaml
+# Active when SPRING_PROFILES_ACTIVE=docker
+# Emits structured JSON logs → consumed by Filebeat
+##############################################
+
+spring:
+  application:
+    name: log-manager
+
+logging:
+  structured:
+    format:
+      console: ecs   # Elastic Common Schema JSON — Spring Boot 3.4+

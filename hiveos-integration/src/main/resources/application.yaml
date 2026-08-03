@@ -1,0 +1,61 @@
+server:
+  port: 8080
+  # honor X-Forwarded-Prefix from the gateway so Swagger UI works behind APISIX path prefixes
+  forward-headers-strategy: framework
+
+app:
+  version: ${APP_VERSION:0.0.1-SNAPSHOT}
+
+service:
+  environment: ${SERVICE_ENVIRONMENT:${ENVIRONMENT:production}}
+
+host:
+  name: ${HOSTNAME:unknown}
+
+container:
+  name: ${CONTAINER_NAME:hiveos-integration}
+
+spring:
+  application:
+    name: hiveos-integration
+  # Bind env vars into properties that logback-spring.xml reads via <springProperty>
+  environment: ${SERVICE_ENVIRONMENT:${ENVIRONMENT:production}}
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:${DB_URL:jdbc:postgresql://host.docker.internal:5432/hiveos_db}}
+    username: ${SPRING_DATASOURCE_USERNAME:${DB_USERNAME:postgres}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:admin123}}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+
+  cloud:
+    consul:
+      host: ${CONSUL_HOST:host.docker.internal}
+      port: ${CONSUL_PORT:8500}
+      discovery:
+        register: true
+        deregister: true
+        prefer-ip-address: true
+        instance-id: ${spring.application.name}:${random.value}
+        health-check-path: /actuator/health
+        health-check-interval: 30s
+        health-check-critical-timeout: 90s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+hiveos:
+  api:
+    base-url: ${HIVEOS_API_URL:https://api2.hiveos.farm/api/v2}
+    token: ${HIVEOS_API_TOKEN:}

@@ -1,0 +1,48 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: auth-service
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://host.docker.internal:5432/auth_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:admin123}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  cloud:
+    consul:
+      host: ${CONSUL_HOST:host.docker.internal}
+      port: ${CONSUL_PORT:8500}
+      enabled: ${CONSUL_ENABLED:false}
+      discovery:
+        register: ${CONSUL_ENABLED:false}
+        deregister: true
+        prefer-ip-address: true
+        instance-id: ${spring.application.name}:${random.value}
+        health-check-path: /actuator/health
+        health-check-interval: 30s
+        health-check-critical-timeout: 90s
+        fail-fast: false
+        catalog-services-watch:
+          enabled: ${CONSUL_ENABLED:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+jwt:
+  secret: ${JWT_SECRET:change-this-secret-key-min-32-characters!!}
+  expiration: ${JWT_EXPIRATION:900000}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}

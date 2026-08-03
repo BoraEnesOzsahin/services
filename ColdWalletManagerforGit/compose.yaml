@@ -1,0 +1,152 @@
+services:
+
+  # ── Spring Boot Application ────────────────────────────────────────
+  app:
+    build: .
+    ports:
+      - '8081:8080'
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/walletdb
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-admin123}
+      - SPRING_CLOUD_VAULT_URI=http://vault:8200
+      - SERVICE_ENVIRONMENT=${SERVICE_ENVIRONMENT:-development}
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    volumes:
+      - vault-data:/vault/file
+      - app-logs:/app/logs
+    entrypoint: /bin/sh
+    command:
+      - "-c"
+      - |
+        while [ ! -f /vault/file/role.id ] || [ ! -f /vault/file/secret.id ]; do
+          echo 'Waiting for Vault AppRole credentials...';
+          sleep 2;
+        done;
+        export VAULT_ROLE_ID=$$(cat /vault/file/role.id)
+        export VAULT_SECRET_ID=$$(cat /vault/file/secret.id)
+        java -jar /app/app.jar
+    networks:
+      - app-network
+      - reckon-ext-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    labels:
+      co.elastic.logs/enabled: "true"
+      co.elastic.logs/multiline.pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}"
+      co.elastic.logs/multiline.negate:  "true"
+      co.elastic.logs/multiline.match:   "after"
+      com.docker.compose.service: "app"
+
+#  # ── PostgreSQL ────────────────────────────────────────────────────
+#  postgres:
+#    image: 'postgres:16'
+#    environment:
+#      - POSTGRES_DB=mydatabase
+#      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-secret}
+#      - POSTGRES_USER=myuser
+#    ports:
+#      - '5433:5432'
+#    volumes:
+#      - postgres-data:/var/lib/postgresql/data
+#      - postgres-logs:/var/log/postgresql
+#      # Mount our structured logging configuration
+#      - ./postgres/postgresql-logging.conf:/etc/postgresql/postgresql-logging.conf:ro
+#    # Apply logging config via PostgreSQL config include mechanism
+#    command: >
+#      postgres
+#      -c include_if_exists=/etc/postgresql/postgresql-logging.conf
+#      -c log_destination=csvlog
+#      -c logging_collector=on
+#      -c log_directory=/var/log/postgresql
+#      -c log_filename=postgresql-%Y-%m-%d.csv
+#      -c log_statement=none
+#      -c log_min_duration_statement=1000
+#      -c log_connections=on
+#      -c log_disconnections=on
+#      -c log_failed_connections=on
+#      -c log_lock_waits=on
+#      -c log_min_messages=WARNING
+#      -c log_timezone=UTC
+#    healthcheck:
+#      test: ["CMD-SHELL", "pg_isready -U myuser -d mydatabase"]
+#      interval: 5s
+#      timeout: 5s
+#      retries: 5
+#    networks:
+#      - app-network
+#      - reckon-ext-net
+#    labels:
+#      co.elastic.logs/enabled: "true"
+#      com.docker.compose.service: "postgres"
+
+  # ── HashiCorp Vault ───────────────────────────────────────────────
+  vault:
+    image: 'hashicorp/vault:latest'
+    ports:
+      - '8200:8200'
+    volumes:
+      - vault-data:/vault/file
+      - vault-logs:/vault/logs
+      - ./vault-config.json:/vault/config/vault-config.json:ro
+    environment:
+      - SKIP_SETCAP=true
+      - VAULT_API_ADDR=http://vault:8200
+      - VAULT_ADDR=http://127.0.0.1:8200
+    entrypoint: vault
+    command: server -config=/vault/config/vault-config.json
+    cap_add:
+      - IPC_LOCK
+    networks:
+      - app-network
+      - reckon-ext-net
+    labels:
+      co.elastic.logs/enabled: "true"
+      com.docker.compose.service: "vault"
+
+  # ── Vault Initialisation (one-shot) ──────────────────────────────
+  vault-init:
+    image: 'hashicorp/vault:latest'
+    depends_on:
+      vault:
+        condition: service_started
+    volumes:
+      - vault-data:/vault/file
+      - vault-logs:/vault/logs
+      - ./vault-init.sh:/vault-init.sh:ro
+      - ./vault-audit-setup.sh:/vault-audit-setup.sh:ro
+    environment:
+      - VAULT_ADDR=http://vault:8200
+    command: >
+      /bin/sh -c "
+        awk '{ sub(\"\\\\r$$\", \"\"); print }' /vault-init.sh > /tmp/init.sh &&
+        awk '{ sub(\"\\\\r$$\", \"\"); print }' /vault-audit-setup.sh > /tmp/vault-audit-setup.sh &&
+        sh /tmp/init.sh
+      "
+    networks:
+      - app-network
+      - reckon-ext-net
+    labels:
+      co.elastic.logs/enabled: "true"
+      com.docker.compose.service: "vault-init"
+
+  # Filebeat has been removed as it is now handled centrally by log-manager.
+
+volumes:
+  postgres-data:
+  postgres-logs:
+  vault-data:
+  vault-logs:
+  app-logs:
+    name: reckon-app-logs
+    external: true
+
+networks:
+  app-network:
+    external: true
+    name: reckon-arc
+  reckon-ext-net:
+    external: true
+    name: reckon-ext-net

@@ -1,0 +1,26 @@
+##############################################################
+# application.yaml  — local / default profile
+# When running in Docker, application-docker.yaml overrides
+# logging.structured.format.console → ECS JSON for Filebeat
+##############################################################
+
+spring:
+  application:
+    name: log-manager
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,loggers
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    root: INFO
+    com.ayrotek: DEBUG
