@@ -23,60 +23,59 @@ import java.util.Arrays;
 @Component
 public class LoggingAspect {
 
-    /* ────────── controllers ────────── */
+    /* ────────── pointcuts ────────── */
 
     @Pointcut("within(com.ayrotek.paymentservice.controller..*)")
     public void controllerMethods() {}
 
-    @Before("controllerMethods()")
-    public void logBeforeController(JoinPoint jp) {
-        String safeArgs = (jp.getArgs() != null && jp.getArgs().length > 0) ? "[Protected Payload]" : "[]";
-        logger(jp).info("→ {}.{}() | args = {}",
-                simpleClass(jp), jp.getSignature().getName(), safeArgs);
-    }
-
-    @AfterReturning(pointcut = "controllerMethods()", returning = "result")
-    public void logAfterController(JoinPoint jp, Object result) {
-        String safeReturn = (result != null) ? "[Processed Successfully]" : "null";
-        logger(jp).info("← {}.{}() | return = {}",
-                simpleClass(jp), jp.getSignature().getName(), safeReturn);
-    }
-
-    @AfterThrowing(pointcut = "controllerMethods()", throwing = "ex")
-    public void logControllerException(JoinPoint jp, Throwable ex) {
-        logger(jp).error("✖ {}.{}() | exception = {}",
-                simpleClass(jp), jp.getSignature().getName(),
-                ex.getMessage(), ex);
-    }
-
-    /* ────────── services ────────── */
-
     @Pointcut("within(com.ayrotek.paymentservice.service..*)")
     public void serviceMethods() {}
 
-    @Around("serviceMethods()")
-    public Object logAroundService(ProceedingJoinPoint pjp) throws Throwable {
+    /* ────────── targeted audit logging ────────── */
+
+    @Around("controllerMethods() || serviceMethods()")
+    public Object logAllMethods(ProceedingJoinPoint pjp) throws Throwable {
         Logger log = logger(pjp);
         String cls = simpleClass(pjp);
         String method = pjp.getSignature().getName();
 
-        // Safely mask arguments (e.g. "payment data received")
-        String safeArgs = (pjp.getArgs() != null && pjp.getArgs().length > 0) ? "[Protected Payload / Data Received]" : "[]";
+        // Push beautiful structured fields to MDC for Logstash to capture
+        org.slf4j.MDC.put("audit.action", method);
+        org.slf4j.MDC.put("audit.resource", cls);
 
-        log.debug("⇢ {}.{}() | args = {}", cls, method, safeArgs);
+        // Safely mask arguments
+        String safeArgs = (pjp.getArgs() != null && pjp.getArgs().length > 0) ? "[Protected Payload]" : "[]";
+
+        log.info("→ START: {}.{}() | Args: {}", cls, method, safeArgs);
+                 
         long start = System.currentTimeMillis();
         try {
             Object result = pjp.proceed();
             long elapsed = System.currentTimeMillis() - start;
             
-            // Mask the return value safely
+            org.slf4j.MDC.put("audit.result", "SUCCESS");
+            org.slf4j.MDC.put("event.outcome", "success");
+            
             String safeReturn = (result != null) ? "[Processed Successfully]" : "null";
-            log.debug("⇠ {}.{}() | {} ms | return = {}", cls, method, elapsed, safeReturn);
+            log.info("← SUCCESS: {}.{}() | {} ms | Return: {}", cls, method, elapsed, safeReturn);
+            
             return result;
         } catch (Throwable t) {
             long elapsed = System.currentTimeMillis() - start;
-            log.error("⇠ {}.{}() | {} ms | exception = {}", cls, method, elapsed, t.getMessage(), t);
+            
+            org.slf4j.MDC.put("audit.result", "FAILURE");
+            org.slf4j.MDC.put("event.outcome", "failure");
+            org.slf4j.MDC.put("error.code", t.getClass().getSimpleName());
+            
+            log.error("✖ FAILURE: {}.{}() | {} ms | Exception: {}", cls, method, elapsed, t.getMessage());
             throw t;
+        } finally {
+            // Clean up MDC so it doesn't leak to other threads
+            org.slf4j.MDC.remove("audit.action");
+            org.slf4j.MDC.remove("audit.resource");
+            org.slf4j.MDC.remove("audit.result");
+            org.slf4j.MDC.remove("event.outcome");
+            org.slf4j.MDC.remove("error.code");
         }
     }
 

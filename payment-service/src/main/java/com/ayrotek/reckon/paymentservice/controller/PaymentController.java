@@ -29,6 +29,7 @@ public class PaymentController {
         ));
     }
 
+    @com.ayrotek.paymentservice.annotation.AuditLog(action = "create_payment_intent", resource = "StripePayment")
     @PostMapping("/intents")
     public ResponseEntity<PaymentIntentResponse> createPaymentIntent(@Valid @RequestBody CreatePaymentIntentRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(paymentService.createPaymentIntent(request));
