@@ -30,15 +30,16 @@ public class LoggingAspect {
 
     @Before("controllerMethods()")
     public void logBeforeController(JoinPoint jp) {
+        String safeArgs = (jp.getArgs() != null && jp.getArgs().length > 0) ? "[Protected Payload]" : "[]";
         logger(jp).info("→ {}.{}() | args = {}",
-                simpleClass(jp), jp.getSignature().getName(),
-                Arrays.toString(jp.getArgs()));
+                simpleClass(jp), jp.getSignature().getName(), safeArgs);
     }
 
     @AfterReturning(pointcut = "controllerMethods()", returning = "result")
     public void logAfterController(JoinPoint jp, Object result) {
+        String safeReturn = (result != null) ? "[Processed Successfully]" : "null";
         logger(jp).info("← {}.{}() | return = {}",
-                simpleClass(jp), jp.getSignature().getName(), result);
+                simpleClass(jp), jp.getSignature().getName(), safeReturn);
     }
 
     @AfterThrowing(pointcut = "controllerMethods()", throwing = "ex")
@@ -59,19 +60,22 @@ public class LoggingAspect {
         String cls = simpleClass(pjp);
         String method = pjp.getSignature().getName();
 
-        log.debug("⇢ {}.{}() | args = {}", cls, method,
-                Arrays.toString(pjp.getArgs()));
+        // Safely mask arguments (e.g. "payment data received")
+        String safeArgs = (pjp.getArgs() != null && pjp.getArgs().length > 0) ? "[Protected Payload / Data Received]" : "[]";
+
+        log.debug("⇢ {}.{}() | args = {}", cls, method, safeArgs);
         long start = System.currentTimeMillis();
         try {
             Object result = pjp.proceed();
             long elapsed = System.currentTimeMillis() - start;
-            log.debug("⇠ {}.{}() | {} ms | return = {}",
-                    cls, method, elapsed, result);
+            
+            // Mask the return value safely
+            String safeReturn = (result != null) ? "[Processed Successfully]" : "null";
+            log.debug("⇠ {}.{}() | {} ms | return = {}", cls, method, elapsed, safeReturn);
             return result;
         } catch (Throwable t) {
             long elapsed = System.currentTimeMillis() - start;
-            log.error("⇠ {}.{}() | {} ms | exception = {}",
-                    cls, method, elapsed, t.getMessage(), t);
+            log.error("⇠ {}.{}() | {} ms | exception = {}", cls, method, elapsed, t.getMessage(), t);
             throw t;
         }
     }

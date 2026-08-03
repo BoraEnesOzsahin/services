@@ -22,11 +22,8 @@ public class LoggingAspect {
         String methodName = joinPoint.getSignature().getName();
         Object[] args = joinPoint.getArgs();
 
-        // Prevent logging arguments for certain methods to avoid logging sensitive data
-        String argsString = "[]";
-        if (!methodName.toLowerCase().contains("password") && !methodName.toLowerCase().contains("secret") && !methodName.toLowerCase().contains("key")) {
-            argsString = Arrays.toString(args);
-        }
+        // Strictly mask arguments to prevent sensitive data exposure
+        String argsString = (args != null && args.length > 0) ? "[Protected Payload]" : "[]";
 
         log.info("AOP Execution Started - Method: {}.{}() - Args: {}", className, methodName, argsString);
 

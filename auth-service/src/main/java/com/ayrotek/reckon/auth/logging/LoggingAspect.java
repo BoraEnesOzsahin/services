@@ -26,38 +26,8 @@ public class LoggingAspect {
         String methodName = joinPoint.getSignature().getName();
         Object[] args = joinPoint.getArgs();
 
-        String argsString = "[]";
-        if (joinPoint.getSignature() instanceof MethodSignature) {
-            MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-            Method method = signature.getMethod();
-            Annotation[][] parameterAnnotations = method.getParameterAnnotations();
-            
-            List<Object> maskedArgs = new ArrayList<>();
-            for (int i = 0; i < args.length; i++) {
-                boolean hasMask = false;
-                if (parameterAnnotations.length > i) {
-                    for (Annotation annotation : parameterAnnotations[i]) {
-                        if (annotation instanceof Mask) {
-                            hasMask = true;
-                            break;
-                        }
-                    }
-                }
-                
-                if (hasMask || methodName.toLowerCase().contains("password") || methodName.toLowerCase().contains("secret") || methodName.toLowerCase().contains("key")) {
-                    maskedArgs.add("********");
-                } else {
-                    maskedArgs.add(args[i]);
-                }
-            }
-            argsString = maskedArgs.toString();
-        } else {
-            if (!methodName.toLowerCase().contains("password") && !methodName.toLowerCase().contains("secret") && !methodName.toLowerCase().contains("key")) {
-                argsString = Arrays.toString(args);
-            } else {
-                argsString = "[********]";
-            }
-        }
+        // Strictly mask arguments to prevent sensitive data exposure
+        String argsString = (args != null && args.length > 0) ? "[Protected Payload]" : "[]";
 
         log.info("AOP Execution Started - Method: {}.{}() - Args: {}", className, methodName, argsString);
 
