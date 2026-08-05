@@ -13,6 +13,11 @@
     <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
 
+            <!-- Prevent springAppName/serviceVersion/serviceEnv context props
+                 from being auto-dumped as top-level fields. The values are
+                 still interpolated inside <customFields> via ${} below. -->
+            <includeContext>false</includeContext>
+
             <!-- ── Suppress noisy built-in fields ── -->
             <fieldNames>
                 <timestamp>@timestamp</timestamp>
@@ -74,6 +79,7 @@
             <maxHistory>90</maxHistory>
         </rollingPolicy>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeContext>false</includeContext>
             <fieldNames>
                 <timestamp>@timestamp</timestamp>
                 <version>[ignore]</version>
@@ -108,6 +114,7 @@
             <maxHistory>90</maxHistory>
         </rollingPolicy>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeContext>false</includeContext>
             <fieldNames>
                 <timestamp>@timestamp</timestamp>
                 <version>[ignore]</version>
