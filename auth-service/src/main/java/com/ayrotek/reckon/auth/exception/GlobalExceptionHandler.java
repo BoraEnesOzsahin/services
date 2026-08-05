@@ -58,6 +58,7 @@ public class GlobalExceptionHandler {
                 .map(e -> e.getField() + ": " + e.getDefaultMessage())
                 .toList();
         String message = details.isEmpty() ? "Validation failed" : details.get(0);
+        log.warn("✖ FAILURE: Validation error at {} | {}", request.getRequestURI(), details);
         return build(HttpStatus.BAD_REQUEST, message, request.getRequestURI(), details);
     }
 
@@ -67,6 +68,7 @@ public class GlobalExceptionHandler {
                 .map(v -> v.getPropertyPath() + ": " + v.getMessage())
                 .toList();
         String message = details.isEmpty() ? "Validation failed" : details.get(0);
+        log.warn("✖ FAILURE: Constraint violation at {} | {}", request.getRequestURI(), details);
         return build(HttpStatus.BAD_REQUEST, message, request.getRequestURI(), details);
     }
 

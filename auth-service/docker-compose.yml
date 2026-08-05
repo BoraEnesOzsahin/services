@@ -1,4 +1,6 @@
 services:
   auth-service:
     build: .
+    ports:
+      - "8091:8091"
 

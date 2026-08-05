@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    networks:
+      - reckon-arc
+
+  eureka-server:
+    build:
+      context: ../eureka-server
+      dockerfile: Dockerfile
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - reckon-arc
+
+  reckon-gateway:
+    build: .
+    container_name: reckon-gateway
+    ports:
+      - "8084:8084"
+    networks:
+      - reckon-arc
+    depends_on:
+      - eureka-server
+
+  user-authentication-service:
+    build:
+      context: ../UserAuthenticationService
+      dockerfile: Dockerfile
+    container_name: UserAuthenticationService
+    networks:
+      - reckon-arc
+    depends_on:
+      - eureka-server
+      - postgres
+
+  cold-wallet-manager-service:
+    build:
+      context: ../ColdWalletManager
+      dockerfile: Dockerfile
+    container_name: Cold-Wallet-Manager-Service
+    networks:
+      - reckon-arc
+    depends_on:
+      - eureka-server
+      - postgres
+
+networks:
+  reckon-arc:
+    driver: bridge
+

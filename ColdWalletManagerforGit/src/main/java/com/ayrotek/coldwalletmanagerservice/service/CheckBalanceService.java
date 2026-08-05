@@ -3,6 +3,7 @@ package com.ayrotek.coldwalletmanagerservice.service;
 import com.ayrotek.coldwalletmanagerservice.logging.AuditService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.web3j.utils.Convert;
@@ -10,6 +11,7 @@ import org.web3j.utils.Numeric;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +43,10 @@ public class CheckBalanceService {
                 .header("Accept", "application/json")
                 .body(requestPayload)
                 .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, res) -> {
+                    String body = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                    throw new RuntimeException("ETC node returned HTTP " + res.getStatusCode() + ": " + body);
+                })
                 .body(RpcResponse.class);
 
         if (response == null || response.result() == null) {
@@ -63,6 +69,10 @@ public class CheckBalanceService {
                 .header("Accept", "application/json")
                 .body(requestPayload)
                 .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, res) -> {
+                    String body = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                    throw new RuntimeException("ETC node returned HTTP " + res.getStatusCode() + ": " + body);
+                })
                 .body(RpcResponse.class);
 
         if (response == null || response.result() == null) {
@@ -80,6 +90,10 @@ public class CheckBalanceService {
                 .header("Accept", "application/json")
                 .body(requestPayload)
                 .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, res) -> {
+                    String body = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                    throw new RuntimeException("ETC node returned HTTP " + res.getStatusCode() + ": " + body);
+                })
                 .body(RpcResponse.class);
 
         if (response == null || response.result() == null) {
@@ -110,6 +124,10 @@ public class CheckBalanceService {
                 .header("Accept", "application/json")
                 .body(requestPayload)
                 .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, res) -> {
+                    String body = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                    throw new RuntimeException("ETC node returned HTTP " + res.getStatusCode() + ": " + body);
+                })
                 .body(RpcResponse.class);
 
         if (response == null || response.result() == null) {
@@ -134,6 +152,10 @@ public class CheckBalanceService {
                 .header("Accept", "application/json")
                 .body(requestPayload)
                 .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, res) -> {
+                    String body = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                    throw new RuntimeException("ETC node returned HTTP " + res.getStatusCode() + ": " + body);
+                })
                 .body(RpcResponse.class);
 
         if (response == null || response.result() == null) {

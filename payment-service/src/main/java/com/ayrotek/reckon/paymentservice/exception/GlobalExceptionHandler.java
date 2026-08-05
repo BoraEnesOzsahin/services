@@ -37,13 +37,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(StripeIntegrationException.class)
     public ResponseEntity<ErrorResponse> handleStripeIntegration(StripeIntegrationException ex, HttpServletRequest request) {
-        log.error("Stripe integration error at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
+        log.error("Stripe integration error at {}: {}", request.getRequestURI(), ex.getMessage());
         return build(HttpStatus.BAD_GATEWAY, "Payment provider error", request.getRequestURI());
     }
 
     @ExceptionHandler(StripeException.class)
     public ResponseEntity<ErrorResponse> handleStripe(StripeException ex, HttpServletRequest request) {
-        log.error("Stripe API error at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
+        log.error("Stripe API error at {}: {}", request.getRequestURI(), ex.getMessage());
         return build(HttpStatus.BAD_GATEWAY, "Payment provider error", request.getRequestURI());
     }
 

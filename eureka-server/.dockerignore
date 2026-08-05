@@ -1,0 +1,7 @@
+.git
+.mvn
+target
+.gitignore
+.gitattributes
+mvnw
+mvnw.cmd

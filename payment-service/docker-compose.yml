@@ -21,9 +21,6 @@ services:
       - CONSUL_PORT=8500
     labels:
       co.elastic.logs/enabled: "true"
-      co.elastic.logs/multiline.pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}"
-      co.elastic.logs/multiline.negate:  "true"
-      co.elastic.logs/multiline.match:   "after"
     networks:
       - reckon-ext-net
     volumes:

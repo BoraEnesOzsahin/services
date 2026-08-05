@@ -13,14 +13,15 @@
     <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
 
-            <!-- ── ECS top-level field names ── -->
+            <!-- ── Suppress noisy built-in fields ── -->
             <fieldNames>
                 <timestamp>@timestamp</timestamp>
+                <version>[ignore]</version>
                 <message>message</message>
                 <logger>log.logger</logger>
                 <thread>log.thread</thread>
+                <level>level</level>
                 <levelValue>[ignore]</levelValue>
-                <!-- log.level is injected via LoggingEventPatternJsonProvider below -->
                 <stackTrace>error.stack_trace</stackTrace>
             </fieldNames>
 
@@ -51,22 +52,11 @@
             <includeMdcKeyName>error.category</includeMdcKeyName>
 
             <!--
-                Pattern provider adds:
-                  log.level  — keyword field, uppercased
-                  error.type — short exception class name (empty when no exception)
-                  error.message — first line of the exception message
+                error.type / error.message are only emitted by ERROR_FILE where
+                an exception is always present.  Omitting the pattern provider
+                here eliminates the empty "error":{"type":"","message":""}
+                that appeared on every normal log line.
             -->
-            <provider class="net.logstash.logback.composite.loggingevent.LoggingEventPatternJsonProvider">
-                <pattern>
-                    {
-                        "log": { "level": "%level" },
-                        "error": {
-                            "type":    "%.-1024ex{short}",
-                            "message": "%.-2048ex{1}"
-                        }
-                    }
-                </pattern>
-            </provider>
 
         </encoder>
     </appender>
@@ -86,9 +76,11 @@
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
             <fieldNames>
                 <timestamp>@timestamp</timestamp>
+                <version>[ignore]</version>
                 <message>message</message>
                 <logger>log.logger</logger>
                 <thread>log.thread</thread>
+                <level>level</level>
                 <levelValue>[ignore]</levelValue>
                 <stackTrace>error.stack_trace</stackTrace>
             </fieldNames>
@@ -118,9 +110,11 @@
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
             <fieldNames>
                 <timestamp>@timestamp</timestamp>
+                <version>[ignore]</version>
                 <message>message</message>
                 <logger>log.logger</logger>
                 <thread>log.thread</thread>
+                <level>level</level>
                 <levelValue>[ignore]</levelValue>
                 <stackTrace>error.stack_trace</stackTrace>
             </fieldNames>
@@ -134,7 +128,6 @@
             <provider class="net.logstash.logback.composite.loggingevent.LoggingEventPatternJsonProvider">
                 <pattern>
                     {
-                        "log": { "level": "%level" },
                         "error": {
                             "type":    "%.-1024ex{short}",
                             "message": "%.-2048ex{1}"

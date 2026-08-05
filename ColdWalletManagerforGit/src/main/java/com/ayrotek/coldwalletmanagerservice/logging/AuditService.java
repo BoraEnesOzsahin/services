@@ -82,6 +82,12 @@ public class AuditService {
         /**
          * Writes the audit event.  MDC keys are set and removed atomically
          * so that concurrent requests cannot bleed into each other.
+         *
+         * <p>The log {@code message} field is intentionally set to a compact JSON
+         * string so that downstream Logstash {@code json { source => "message" }}
+         * filters can parse it without error.  All fields are also emitted as
+         * top-level structured arguments so that encoders which do not apply a
+         * JSON filter still capture them correctly.
          */
         public void emit() {
             String traceId      = MDC.get(RequestCorrelationFilter.MDC_TRACE_ID);
@@ -92,25 +98,49 @@ public class AuditService {
                             ? MDC.get(RequestCorrelationFilter.MDC_ACTOR)
                             : "anonymous");
 
+            // Build a JSON string for the message field so that Logstash
+            // "json { source => 'message' }" filters can parse it successfully.
+            // Without this, Logstash would receive the literal "audit_event"
+            // string and emit: "invalid character 'a' looking for beginning of value".
+            String resolvedTrace  = traceId != null ? traceId : "-";
+            String resolvedDetail = detail  != null ? detail  : "";
+            String jsonMessage = "{\"event.action\":\"" + escape(action)         + "\""
+                    + ",\"actor\":\""      + escape(resolvedActor)  + "\""
+                    + ",\"resource\":\""   + escape(resource)       + "\""
+                    + ",\"result\":\""     + escape(result)         + "\""
+                    + ",\"trace.id\":\""   + escape(resolvedTrace)  + "\""
+                    + ",\"detail\":\""     + escape(resolvedDetail) + "\""
+                    + "}";
+
             MDC.put("audit.action",   action);
             MDC.put("audit.actor",    resolvedActor);
             MDC.put("audit.resource", resource);
             MDC.put("audit.result",   result);
             try {
-                auditLog.info("audit_event",
+                auditLog.info(jsonMessage,
                         StructuredArguments.kv("event.action",   action),
                         StructuredArguments.kv("actor",          resolvedActor),
                         StructuredArguments.kv("resource",       resource),
                         StructuredArguments.kv("result",         result),
-                        StructuredArguments.kv("trace.id",       traceId != null ? traceId : "-"),
+                        StructuredArguments.kv("trace.id",       resolvedTrace),
                         StructuredArguments.kv("@timestamp",     Instant.now().toString()),
-                        StructuredArguments.kv("detail",         detail != null ? detail : ""));
+                        StructuredArguments.kv("detail",         resolvedDetail));
             } finally {
                 MDC.remove("audit.action");
                 MDC.remove("audit.actor");
                 MDC.remove("audit.resource");
                 MDC.remove("audit.result");
             }
+        }
+
+        /** Minimal JSON string escaping for values embedded in the message field. */
+        private static String escape(String value) {
+            if (value == null) return "";
+            return value.replace("\\", "\\\\")
+                        .replace("\"", "\\\"")
+                        .replace("\n", "\\n")
+                        .replace("\r", "\\r")
+                        .replace("\t", "\\t");
         }
     }
 }
